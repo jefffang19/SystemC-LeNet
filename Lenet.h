@@ -25,6 +25,15 @@ SC_MODULE(lenet)
 	
 	ifstream fin;
 	
+	//strategy
+	//input -> conv1
+	//read kernal 1, read input image (sizeof kernal 1), output to pooling
+	//read next sizeof kernal 1, output to pooling... until input image done
+	//read kernal 2, read input image ... repeat previous 2 steps until 6 kernal had finish reading and conv
+	
+
+	void read_input();
+	void read_weight();
 	
 	
 	SC_CTOR(lenet)
