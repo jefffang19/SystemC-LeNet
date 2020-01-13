@@ -22,24 +22,37 @@ SC_MODULE(lenet)
 	sc_out<bool> valid;
 	
 	
-	
 	ifstream fin;
 	
 	//strategy
 	//input -> conv1
-	//read kernal 1, read input image (sizeof kernal 1), output to pooling
-	//read next sizeof kernal 1, output to pooling... until input image done
-	//read kernal 2, read input image ... repeat previous 2 steps until 6 kernal had finish reading and conv
-	
 
-	void read_input();
-	void read_weight();
+	//store img to ram (done)
+
+	//read kernal 1 from rom and image from ram both 1 element at a time, multiply(or add in bias case)
+	//in next cycle (done)
+
+	//send reuslt to ram (done)
+
+	//slide window (done)
+
+	//result might be wrong!!
+
+	//switch 2 next filter
+
+	void run_lenet();
+
+	void img_write_to_ram();
+	void img_read_from_ram();
+	void data_store_to_ram(TYPE value);
+	void read_kernal();
 	
 	
 	SC_CTOR(lenet)
 	{
 		fin.open(INPUT_FILE);
-		
+		SC_METHOD(run_lenet);
+		sensitive << clock.neg();
 	}
 };
 
