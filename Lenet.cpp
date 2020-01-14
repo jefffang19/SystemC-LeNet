@@ -54,6 +54,14 @@ static bool start_fclayer1 = false;
 static bool start_fclayer2 = false;
 static bool start_fclayer3 = false;
 
+
+//debug
+static int counting = 0;
+static int ff = 0;
+static sc_uint<16> start;
+static sc_uint<16> end;
+static int cut;
+
 TYPE relu(TYPE input);
 
 void debug_register(){
@@ -93,12 +101,13 @@ void lenet::run_lenet(){
         if(ram_tracker<IMG_SIZE && image_read) img_read_from_ram();
         //else if(start_conv2 && image_read) img_read_from_ram();
 
-        if((rom_tracker - filter_start) < KERNAL_SIZE +1 && image_read && !start_pooling && !start_conv2) read_kernal();
+        if((rom_tracker - filter_start) < KERNAL_SIZE +2 && image_read && !start_pooling && !start_conv2) read_kernal();
         
         //start doing convolution
         if(start_conv && !start_conv2 && !dedicate_to_storing){
             if(op_cnt++ < KERNAL_SIZE){ //convolution operation
                 sum += img * kernal;
+                ram_tracker++;
                 //cout << sum << " "; //debug
                 //cout << "conv cnt:" << op_cnt << " " << img << "\t" << kernal << endl; //debug
                 //cout << kernal << " "; //debug
@@ -107,14 +116,14 @@ void lenet::run_lenet(){
                 sum += kernal;
                 
                 //activation function
-                    sum = relu(sum);
+                sum = relu(sum);
 
-                    ++total_op_counter;
+                ++total_op_counter;
 
-                    //if(sum!=0) cout << "debug:" << sum << " " << result_to_ram << " " << total_op_counter << endl;
+                //if(sum!=0) cout << "debug:" << sum << " " << result_to_ram << " " << total_op_counter << endl;
 
-                    //store to ram
-                    data_store_to_ram(sum);
+                //store to ram
+                data_store_to_ram(sum);
 
                 //cout << "Finish: " << sum << endl << endl; //debug
                 //image_read = false; //debug
@@ -127,26 +136,23 @@ void lenet::run_lenet(){
 
                     //ram debug setting
                     //ram_debuging = true;
-                    //img_len = 576;
-                    //kernal_len = 24
                 }
 
-                    //clear buffers
-                    op_cnt = 0;
-                    sum = 0;
-                    count_slide = 0;
+                //clear buffers
+                op_cnt = 0;
+                sum = 0;
+                count_slide = 0;
 
-                    //calculate the next starting point
-                    ++start_of_conv;
-                    //check if reach image's edge - filter length
-                    if(start_of_conv % img_len == img_len - (kernal_len - 1)) start_of_conv+=(kernal_len - 1);
+                //calculate the next starting point
+                ++start_of_conv;
+                //check if reach image's edge - filter length
+                if(start_of_conv % img_len == img_len - (kernal_len - 1)) start_of_conv+=(kernal_len - 1);
 
-                    //set the next starting point
-                ram_tracker = start_of_conv - 1;
+                //set the next starting point
+                ram_tracker = start_of_conv;
+                
                 
             }
-
-            ++ram_tracker;
 
             //if reach the filter's length
             if(count_slide == kernal_len -1){
@@ -155,6 +161,10 @@ void lenet::run_lenet(){
                 count_slide = 0;
             }
             else if(!dedicate_to_storing) ++count_slide;
+
+            if(!dedicate_to_storing) ram_addr = ram_tracker;
+
+            //if(total_op_counter<5) cout << "Rt=" << ram_tracker << " " << start_of_conv << " " << sum << endl;
         }
         else if(start_conv2 && !dedicate_to_storing){
             if(op_cnt++ < KERNAL_SIZE){ //convolution operation
@@ -486,8 +496,6 @@ void lenet::run_lenet(){
 
                     //debugging
                     debug_register();
-                    img_len = 10;
-                    kernal_len = 10;
                     ram_debuging = true;
                 }
                 else if(total_op_counter%85 == 0){
@@ -535,7 +543,7 @@ void lenet::run_lenet(){
                 ram_tracker = start_of_conv;
                 ram_addr = ram_tracker;
 
-                if(!ram_debuging) img_len = 12;
+                img_len = 12;
                 request_to_rom = false; //let read_kernal signals conv
 
                 read_kernal();
@@ -627,11 +635,14 @@ void lenet::run_lenet(){
 
     //debug check conv result
     if(ram_debuging && !dedicate_to_storing){
-        static int counting;
-        static int ff;
-        if(counting < img_len){
+        //start = begin_of_conv_in_ram;
+        //end = result_to_ram;
+        start = 6130;
+        end = 6140;
+        cut = 24;
+        if(start + counting < end){
             ram_wr = 1;
-            ram_addr = counting + result_to_ram - (img_len);
+            ram_addr = counting + start;
             //cout << counting + result_to_ram -(img_len);
             img = ram_data_in;
             if(ff++){
@@ -639,8 +650,8 @@ void lenet::run_lenet(){
                 else cout << "0 ";
                 counting ++;
             }
-            if(counting % (kernal_len*kernal_len) ==0) cout << endl << endl;
-            else if(counting % kernal_len ==0) cout << endl;
+            if(counting % cut*cut ==0) cout << endl << endl;
+            else if(counting % cut ==0) cout << endl;
         }
         else{
             ram_debuging = false;
