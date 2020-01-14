@@ -5,6 +5,7 @@
 #define IMG_SIZE 784
 #define CONV_LAYER1 6
 #define CONV_LAYER2 16
+#define FC_LAYER1 128
 
 
 //ram stuff
@@ -47,6 +48,11 @@ static bool start_pooling = false;
 static bool start_pooling2 = false;
 static TYPE max_pool_value;
 
+//fc layers
+static bool signal_fc = false;
+static bool start_fclayer1 = false;
+static bool start_fclayer2 = false;
+static bool start_fclayer3 = false;
 
 TYPE relu(TYPE input);
 
@@ -337,25 +343,168 @@ void lenet::run_lenet(){
                 ram_tracker = ram_tracker - 7;
             }
             
-            if(total_op_counter==1024){
+            if(total_op_counter==1023){
                 cout << "pooling 2 is done. (debug)\n";
 
                 start_pooling2 = false;
+                signal_fc = true;
 
                 //move ram pointer back to start of the pooling layer outputs
                 //ram_tracker = begin_of_pool_in_ram;
-                begin_of_conv_in_ram = result_to_ram;
+                begin_of_pool_in_ram = result_to_ram;
 
                 //debugging
                 debug_register();
-                img_len = 256;
-                kernal_len = 4;
-                ram_debuging = true;
+                //img_len = 256;
+                //kernal_len = 4;
+                //ram_debuging = true;
             }
             else if(total_op_counter%16==15){
                 ram_tracker+=8;
             }
             ++total_op_counter;
+        }
+        //fc layer1
+        else if(start_fclayer1){
+            ++total_op_counter;
+
+            if(!dedicate_to_storing){
+                img = ram_data_in;
+                kernal = rom_data_in;
+
+                if(total_op_counter%257 != 0){
+                    sum += img*kernal;
+                    rom_addr = rom_tracker++;
+                    ram_addr = ram_tracker++;
+                }
+                //fc1 end
+                else if(total_op_counter == 32896){
+                    cout << "debug: fc 1 end\n";
+                    
+                    sum += kernal;
+                    sum = relu(sum);
+                    data_store_to_ram(sum);
+                    start_fclayer1 = false;
+                    signal_fc = true;
+                    start_pooling2 = true;
+                    begin_of_conv_in_ram = begin_of_pool_in_ram;
+                    begin_of_pool_in_ram = result_to_ram;
+
+                    //debugging
+                    debug_register();
+                    //img_len = 128;
+                    //kernal_len = 128;
+                    //ram_debuging = true;
+                }
+                else if(total_op_counter%257 == 0){
+                    sum += kernal;
+                    sum = relu(sum);
+                    data_store_to_ram(sum);
+                    sum = 0;
+                }
+            }
+            else{
+                dedicate_to_storing = false;
+                ram_tracker = begin_of_conv_in_ram;
+                ram_wr = true; //read mode on
+                ram_addr = ram_tracker++;
+                rom_addr = rom_tracker++;
+                --total_op_counter;
+            }
+        }
+        //fc layer2
+        else if(start_fclayer2){
+            ++total_op_counter;
+
+            if(!dedicate_to_storing){
+                img = ram_data_in;
+                kernal = rom_data_in;
+
+                if(total_op_counter%129 != 0){
+                    sum += img*kernal;
+                    rom_addr = rom_tracker++;
+                    ram_addr = ram_tracker++;
+                }
+                //fc2 end
+                else if(total_op_counter == 10836){
+                    cout << "debug: fc 2 end\n";
+                    
+                    sum += kernal;
+                    sum = relu(sum);
+                    data_store_to_ram(sum);
+                    start_fclayer2 = false;
+                    start_pooling2 = true;
+                    begin_of_conv_in_ram = begin_of_pool_in_ram;
+                    begin_of_pool_in_ram = result_to_ram;
+
+                    //debugging
+                    debug_register();
+                    //img_len = 84;
+                    //kernal_len = 84;
+                    //ram_debuging = true;
+                }
+                else if(total_op_counter%129 == 0){
+                    sum += kernal;
+                    sum = relu(sum);
+                    data_store_to_ram(sum);
+                    sum = 0;
+                }
+            }
+            else{
+                dedicate_to_storing = false;
+                ram_tracker = begin_of_conv_in_ram;
+                ram_wr = true; //read mode on
+                ram_addr = ram_tracker++;
+                rom_addr = rom_tracker++;
+                --total_op_counter;
+            }
+        }
+        //fc layer3
+        else if(start_fclayer3){
+            ++total_op_counter;
+
+            if(!dedicate_to_storing){
+                img = ram_data_in;
+                kernal = rom_data_in;
+
+                if(total_op_counter%85 != 0){
+                    sum += img*kernal;
+                    rom_addr = rom_tracker++;
+                    ram_addr = ram_tracker++;
+                }
+                //fc2 end
+                else if(total_op_counter == 850){
+                    cout << "debug: fc 3 end\n";
+                    
+                    sum += kernal;
+                    sum = relu(sum);
+                    data_store_to_ram(sum);
+
+                    start_fclayer3 = false;
+                    begin_of_conv_in_ram = begin_of_pool_in_ram;
+                    begin_of_pool_in_ram = result_to_ram;
+
+                    //debugging
+                    debug_register();
+                    img_len = 10;
+                    kernal_len = 10;
+                    ram_debuging = true;
+                }
+                else if(total_op_counter%85 == 0){
+                    sum += kernal;
+                    sum = relu(sum);
+                    data_store_to_ram(sum);
+                    sum = 0;
+                }
+            }
+            else{
+                dedicate_to_storing = false;
+                ram_tracker = begin_of_conv_in_ram;
+                ram_wr = true; //read mode on
+                ram_addr = ram_tracker++;
+                rom_addr = rom_tracker++;
+                --total_op_counter;
+            }
         }
         else if(dedicate_to_storing){
             dedicate_to_storing = false;
@@ -428,6 +577,45 @@ void lenet::run_lenet(){
 
                 cout << "DEBUG conv2: end" << endl;
                 debug_register();
+            }
+            //fc 1
+            else if(!start_pooling2 && signal_fc){
+                cout << "debug: enter fc1\n";
+                start_fclayer1 = true; 
+                signal_fc = false;
+                ram_tracker = begin_of_conv_in_ram;
+                
+                total_op_counter = 0;
+                rom_addr = rom_tracker++;
+                ram_addr = ram_tracker++;
+            }
+            //fc 2
+            else if(start_pooling2 && !start_fclayer1 && signal_fc){
+                cout << "debug: enter fc2\n";
+                debug_register();
+                ram_tracker = begin_of_conv_in_ram;
+                start_fclayer2 = true;
+                start_fclayer3 = false;
+                start_pooling2 = false;
+                signal_fc = false;
+
+                total_op_counter = 0;
+                rom_addr = rom_tracker++;
+                ram_addr = ram_tracker++;
+            }
+            //fc 3
+            else if(start_pooling2 && !start_fclayer1 && !signal_fc){
+                cout << "debug: enter fc3\n";
+                debug_register();
+                ram_tracker = begin_of_conv_in_ram;
+                start_fclayer3 = true;
+                start_pooling2 = false;
+                start_fclayer1 = false;
+                signal_fc = false;
+
+                total_op_counter = 0;
+                rom_addr = rom_tracker++;
+                ram_addr = ram_tracker++;
             }
 
 
